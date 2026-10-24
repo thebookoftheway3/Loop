@@ -343,6 +343,19 @@ final class ResearchUntimedEvidenceTests: XCTestCase {
 }
 
 final class ResearchBackgroundRecoveryTests: XCTestCase {
+    func testDisconnectCooldownBlocksEventAndPollLookupsUntilShutdownInterval() {
+        var cooldown = ResearchReconnectCooldown()
+        XCTAssertTrue(cooldown.permitsLookup(at: 100))
+        cooldown.disconnected(at: 100)
+        for now in [100.0, 100.1, 101.0, 101.999] {
+            XCTAssertFalse(cooldown.permitsLookup(at: now))
+        }
+        XCTAssertTrue(cooldown.permitsLookup(at: 102))
+        cooldown.disconnected(at: 103)
+        XCTAssertFalse(cooldown.permitsLookup(at: 104.999))
+        XCTAssertTrue(cooldown.permitsLookup(at: 105))
+    }
+
     private struct Peer {
         let id: UUID
         var matches = true
