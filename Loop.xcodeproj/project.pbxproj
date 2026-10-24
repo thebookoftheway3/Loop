@@ -677,6 +677,132 @@
 			remoteGlobalIDString = E9B07F7B253BBA6500BAD8F8;
 			remoteInfo = "Loop Intent Extension";
 		};
+		9571CADA66456111A65B57B0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C89038F8DECB97E0BCCEAAA0 /* AmplitudeService.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = A9FC98DB2333EFE10010CBD2;
+			remoteInfo = AmplitudeServiceKitPlugin;
+		};
+		BA868F01880BC7D41FF04A7D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = F7C1D0F5E74F563AAFDAC7D1 /* MixpanelService.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = 849523B52A25DCD3003AC2FD;
+			remoteInfo = MixpanelServiceKitPlugin;
+		};
+		7D49CBE97B9134B5E5E32630 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6EA64F495404E62261262752 /* NightscoutService.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = A99C713023396CB100AB9035;
+			remoteInfo = NightscoutServiceKitPlugin;
+		};
+		0FCC060E7CF87F851E18AAC4 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 457819E8B59834D33B6D62CE /* MedtrumKit.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = 3E767D422D67B790004B1971;
+			remoteInfo = MedtrumKitPlugin;
+		};
+		ADD09634275A6179DF090F06 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 37AF4EB078C4FFD1BF26D015 /* MinimedKit.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = C1E34B5A29C7AD01009A50A5;
+			remoteInfo = MinimedKitPlugin;
+		};
+		F5638CB12596E1FA304EE7D5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 38D6BE0CE724394FBBD0A4F7 /* OmnipodKit.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = D889B2382D2B4BFE00C8E64C;
+			remoteInfo = OmnipodKitPlugin;
+		};
+		301F6CB602D2A289BBD78779 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A6BA5CE340F9A121F60240FB /* ShareClient.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = B40BF25D23ABD47400A43CEE;
+			remoteInfo = ShareClientPlugin;
+		};
+		D1BEE23689C903881D44AA72 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 1ECC4C5D1C374E214B611125 /* LogglyService.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = A99C711A233965F000AB9035;
+			remoteInfo = LogglyServiceKitPlugin;
+		};
+		C110AB5F675AACBE3D0CDC02 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 2F6CA404422A669982AE17BA /* TidepoolService.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = A94AE4E3235A89B5005CA320;
+			remoteInfo = TidepoolServiceKitPlugin;
+		};
+		B1284F7C90E2471A09784BAA /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 85FCA26EB110FC747AE9BE5C /* CGMBLEKit.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = B4D40D3D23A428BC00D7ECB5;
+			remoteInfo = CGMBLEKitG5Plugin;
+		};
+		5CEFD7DDDEB327F499490FF8 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 85FCA26EB110FC747AE9BE5C /* CGMBLEKit.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = B4D40D2D23A3E91800D7ECB5;
+			remoteInfo = CGMBLEKitG6Plugin;
+		};
+		CE6DA13C55F2B9221C436C05 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 34293DE860AE7D2C8A7F27D2 /* EversenseKit.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = 3E6696E52E927EB900AAE4F1;
+			remoteInfo = EversenseKitPlugin;
+		};
+		C109ABF9EFCDFE967C4C9C3F /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 14F48FBB8703249CBDBA4F5A /* G7SensorKit.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = C17F511C291EACCD00555EB5;
+			remoteInfo = G7SensorPlugin;
+		};
+		8F59F4C30FBAAE8C0D325C1B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E6479E71C7A37968A81711E3 /* LibreTransmitter.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = B40BF25D23ABD47400A43CEE;
+			remoteInfo = LibreTransmitterPlugin;
+		};
+		D23F65C44EDFFD25018B48B9 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E6479E71C7A37968A81711E3 /* LibreTransmitter.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = C1BDBAE72A4397E200A787D1;
+			remoteInfo = LibreDemoPlugin;
+		};
+		BAE22E1BE6ABF5E14BC64C92 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 9E642DBCA9019D7B79A4B972 /* LoopSupport.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = A936A97325BC9A230085119C;
+			remoteInfo = LoopSupportPlugin;
+		};
+		E7653D87EE5FBC00B6B58456 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 980F23F6F6DD5776C2EFEFF8 /* LoopOnboarding.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = A936A8F625BC99470085119C;
+			remoteInfo = LoopOnboardingPlugin;
+		};
+		E7C584D6EF61EA93F3E027DD /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 6A1FB72B625CFAFDE9BD3067 /* NightscoutRemoteCGM.xcodeproj */;
+			proxyType = 1;
+			remoteGlobalIDString = A9BAC72626CDB7A5001C9493;
+			remoteInfo = NightscoutRemoteCGMPlugin;
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -1415,6 +1541,22 @@
 		F5E0BDDA27E1D71F0033557E /* he */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = he; path = he.lproj/Localizable.strings; sourceTree = "<group>"; };
 		F5E0BDE327E1D7230033557E /* he */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = he; path = he.lproj/Localizable.strings; sourceTree = "<group>"; };
 		FADE0001000000000000DE01 /* DevelopmentBranchAlerter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevelopmentBranchAlerter.swift; sourceTree = "<group>"; };
+		C89038F8DECB97E0BCCEAAA0 /* AmplitudeService.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = AmplitudeService.xcodeproj; path = "../AmplitudeService/AmplitudeService.xcodeproj"; sourceTree = SOURCE_ROOT; };
+		85FCA26EB110FC747AE9BE5C /* CGMBLEKit.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = CGMBLEKit.xcodeproj; path = "../CGMBLEKit/CGMBLEKit.xcodeproj"; sourceTree = SOURCE_ROOT; };
+		34293DE860AE7D2C8A7F27D2 /* EversenseKit.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = EversenseKit.xcodeproj; path = "../EversenseKit/EversenseKit.xcodeproj"; sourceTree = SOURCE_ROOT; };
+		14F48FBB8703249CBDBA4F5A /* G7SensorKit.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = G7SensorKit.xcodeproj; path = "../G7SensorKit/G7SensorKit.xcodeproj"; sourceTree = SOURCE_ROOT; };
+		E6479E71C7A37968A81711E3 /* LibreTransmitter.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = LibreTransmitter.xcodeproj; path = "../LibreTransmitter/LibreTransmitter.xcodeproj"; sourceTree = SOURCE_ROOT; };
+		1ECC4C5D1C374E214B611125 /* LogglyService.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = LogglyService.xcodeproj; path = "../LogglyService/LogglyService.xcodeproj"; sourceTree = SOURCE_ROOT; };
+		980F23F6F6DD5776C2EFEFF8 /* LoopOnboarding.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = LoopOnboarding.xcodeproj; path = "../LoopOnboarding/LoopOnboarding.xcodeproj"; sourceTree = SOURCE_ROOT; };
+		9E642DBCA9019D7B79A4B972 /* LoopSupport.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = LoopSupport.xcodeproj; path = "../LoopSupport/LoopSupport.xcodeproj"; sourceTree = SOURCE_ROOT; };
+		457819E8B59834D33B6D62CE /* MedtrumKit.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = MedtrumKit.xcodeproj; path = "../MedtrumKit/MedtrumKit.xcodeproj"; sourceTree = SOURCE_ROOT; };
+		37AF4EB078C4FFD1BF26D015 /* MinimedKit.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = MinimedKit.xcodeproj; path = "../MinimedKit/MinimedKit.xcodeproj"; sourceTree = SOURCE_ROOT; };
+		F7C1D0F5E74F563AAFDAC7D1 /* MixpanelService.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = MixpanelService.xcodeproj; path = "../MixpanelService/MixpanelService.xcodeproj"; sourceTree = SOURCE_ROOT; };
+		6A1FB72B625CFAFDE9BD3067 /* NightscoutRemoteCGM.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = NightscoutRemoteCGM.xcodeproj; path = "../NightscoutRemoteCGM/NightscoutRemoteCGM.xcodeproj"; sourceTree = SOURCE_ROOT; };
+		6EA64F495404E62261262752 /* NightscoutService.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = NightscoutService.xcodeproj; path = "../NightscoutService/NightscoutService.xcodeproj"; sourceTree = SOURCE_ROOT; };
+		38D6BE0CE724394FBBD0A4F7 /* OmnipodKit.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = OmnipodKit.xcodeproj; path = "../OmnipodKit/OmnipodKit.xcodeproj"; sourceTree = SOURCE_ROOT; };
+		2F6CA404422A669982AE17BA /* TidepoolService.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = TidepoolService.xcodeproj; path = "../TidepoolService/TidepoolService.xcodeproj"; sourceTree = SOURCE_ROOT; };
+		A6BA5CE340F9A121F60240FB /* ShareClient.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; name = ShareClient.xcodeproj; path = "../dexcom-share-client-swift/ShareClient.xcodeproj"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1688,6 +1830,7 @@
 		43776F831B8022E90074EA36 = {
 			isa = PBXGroup;
 			children = (
+				D98ABF086E1351E6CA4F41BA /* Plugin Projects */,
 				C18A491122FCC20B00FDA733 /* Scripts */,
 				4FF4D0FA1E1834BD00846527 /* Common */,
 				43776F8E1B8022E90074EA36 /* Loop */,
@@ -2668,6 +2811,141 @@
 			path = Fixtures;
 			sourceTree = "<group>";
 		};
+		177E0DD00698EEAB1A2BD777 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A53C4A5AE33203A0C4857F93 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		C767F71BA0EBE04464AE26F2 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		D371036AF43806627B2AC640 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		ABED85E3B1F1385C09DD5A6B /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		B7C097942E04EA844042B131 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		ECEF643B42ABB73B886D74C5 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		7CEC2B5B88320FEAAA6E8689 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		DB4E3746BF3C8CC44DB3D119 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		0BA6D7B5BE1970D8B209EF11 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		DC3D347CAE7FC41F6D972BBD /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		1E7C647DBD5F82AD32407E4D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		9C289BF5605121448945398F /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		1F68DDF564260EAB659101B0 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		D961A4242C8500D6CFF2CC9A /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		0C08C83C22B4044B5B6B126D /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		D98ABF086E1351E6CA4F41BA /* Plugin Projects */ = {
+			isa = PBXGroup;
+			children = (
+				C89038F8DECB97E0BCCEAAA0 /* AmplitudeService.xcodeproj */,
+				85FCA26EB110FC747AE9BE5C /* CGMBLEKit.xcodeproj */,
+				34293DE860AE7D2C8A7F27D2 /* EversenseKit.xcodeproj */,
+				14F48FBB8703249CBDBA4F5A /* G7SensorKit.xcodeproj */,
+				E6479E71C7A37968A81711E3 /* LibreTransmitter.xcodeproj */,
+				1ECC4C5D1C374E214B611125 /* LogglyService.xcodeproj */,
+				980F23F6F6DD5776C2EFEFF8 /* LoopOnboarding.xcodeproj */,
+				9E642DBCA9019D7B79A4B972 /* LoopSupport.xcodeproj */,
+				457819E8B59834D33B6D62CE /* MedtrumKit.xcodeproj */,
+				37AF4EB078C4FFD1BF26D015 /* MinimedKit.xcodeproj */,
+				F7C1D0F5E74F563AAFDAC7D1 /* MixpanelService.xcodeproj */,
+				6A1FB72B625CFAFDE9BD3067 /* NightscoutRemoteCGM.xcodeproj */,
+				6EA64F495404E62261262752 /* NightscoutService.xcodeproj */,
+				38D6BE0CE724394FBBD0A4F7 /* OmnipodKit.xcodeproj */,
+				2F6CA404422A669982AE17BA /* TidepoolService.xcodeproj */,
+				A6BA5CE340F9A121F60240FB /* ShareClient.xcodeproj */,
+			);
+			name = "Plugin Projects";
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXHeadersBuildPhase section */
@@ -2735,6 +3013,24 @@
 			buildRules = (
 			);
 			dependencies = (
+				D5E60B22B34F935BBC07A80D /* PBXTargetDependency */,
+				DFC65ED345C8056AB8987AD5 /* PBXTargetDependency */,
+				67996205300E0CD3CFED34B6 /* PBXTargetDependency */,
+				65CF3E768210B5F12ADE95FC /* PBXTargetDependency */,
+				BE5F262DDDFAAC3370BE3F8A /* PBXTargetDependency */,
+				6C36B7BBE8C62A84EF852ED6 /* PBXTargetDependency */,
+				8DC9E89346C4A9849FC1891E /* PBXTargetDependency */,
+				835CD2D66EF2DDF3B8CB19E9 /* PBXTargetDependency */,
+				C76BF9455B96A4BCCEDE1719 /* PBXTargetDependency */,
+				972D8D7245A203F485FFE502 /* PBXTargetDependency */,
+				9D9BFC5E0DD412A4C963E376 /* PBXTargetDependency */,
+				9EF8852763B0FD8B95BB0250 /* PBXTargetDependency */,
+				C9E52AA31AE792D99C4A0E43 /* PBXTargetDependency */,
+				71740DECA8680B1711BDBF9F /* PBXTargetDependency */,
+				75BADBC6E471ACC770FF00E0 /* PBXTargetDependency */,
+				136EA3C77BC0967C734B6DC7 /* PBXTargetDependency */,
+				3B88C765F47AFB76AC9120C7 /* PBXTargetDependency */,
+				F964FD178A41B0F87F4BBB62 /* PBXTargetDependency */,
 				4F7528971DFE1ED400C322D6 /* PBXTargetDependency */,
 				43A943931B926B7B0051FA24 /* PBXTargetDependency */,
 				4F70C1E71DE8DCA7006380B7 /* PBXTargetDependency */,
@@ -3053,6 +3349,72 @@
 			);
 			productRefGroup = 43776F8D1B8022E90074EA36 /* Products */;
 			projectDirPath = "";
+			projectReferences = (
+				{
+					ProductGroup = 177E0DD00698EEAB1A2BD777 /* Products */;
+					ProjectRef = C89038F8DECB97E0BCCEAAA0 /* AmplitudeService.xcodeproj */;
+				},
+				{
+					ProductGroup = A53C4A5AE33203A0C4857F93 /* Products */;
+					ProjectRef = 85FCA26EB110FC747AE9BE5C /* CGMBLEKit.xcodeproj */;
+				},
+				{
+					ProductGroup = C767F71BA0EBE04464AE26F2 /* Products */;
+					ProjectRef = 34293DE860AE7D2C8A7F27D2 /* EversenseKit.xcodeproj */;
+				},
+				{
+					ProductGroup = D371036AF43806627B2AC640 /* Products */;
+					ProjectRef = 14F48FBB8703249CBDBA4F5A /* G7SensorKit.xcodeproj */;
+				},
+				{
+					ProductGroup = ABED85E3B1F1385C09DD5A6B /* Products */;
+					ProjectRef = E6479E71C7A37968A81711E3 /* LibreTransmitter.xcodeproj */;
+				},
+				{
+					ProductGroup = B7C097942E04EA844042B131 /* Products */;
+					ProjectRef = 1ECC4C5D1C374E214B611125 /* LogglyService.xcodeproj */;
+				},
+				{
+					ProductGroup = ECEF643B42ABB73B886D74C5 /* Products */;
+					ProjectRef = 980F23F6F6DD5776C2EFEFF8 /* LoopOnboarding.xcodeproj */;
+				},
+				{
+					ProductGroup = 7CEC2B5B88320FEAAA6E8689 /* Products */;
+					ProjectRef = 9E642DBCA9019D7B79A4B972 /* LoopSupport.xcodeproj */;
+				},
+				{
+					ProductGroup = DB4E3746BF3C8CC44DB3D119 /* Products */;
+					ProjectRef = 457819E8B59834D33B6D62CE /* MedtrumKit.xcodeproj */;
+				},
+				{
+					ProductGroup = 0BA6D7B5BE1970D8B209EF11 /* Products */;
+					ProjectRef = 37AF4EB078C4FFD1BF26D015 /* MinimedKit.xcodeproj */;
+				},
+				{
+					ProductGroup = DC3D347CAE7FC41F6D972BBD /* Products */;
+					ProjectRef = F7C1D0F5E74F563AAFDAC7D1 /* MixpanelService.xcodeproj */;
+				},
+				{
+					ProductGroup = 1E7C647DBD5F82AD32407E4D /* Products */;
+					ProjectRef = 6A1FB72B625CFAFDE9BD3067 /* NightscoutRemoteCGM.xcodeproj */;
+				},
+				{
+					ProductGroup = 9C289BF5605121448945398F /* Products */;
+					ProjectRef = 6EA64F495404E62261262752 /* NightscoutService.xcodeproj */;
+				},
+				{
+					ProductGroup = 1F68DDF564260EAB659101B0 /* Products */;
+					ProjectRef = 38D6BE0CE724394FBBD0A4F7 /* OmnipodKit.xcodeproj */;
+				},
+				{
+					ProductGroup = D961A4242C8500D6CFF2CC9A /* Products */;
+					ProjectRef = 2F6CA404422A669982AE17BA /* TidepoolService.xcodeproj */;
+				},
+				{
+					ProductGroup = 0C08C83C22B4044B5B6B126D /* Products */;
+					ProjectRef = A6BA5CE340F9A121F60240FB /* ShareClient.xcodeproj */;
+				},
+			);
 			projectRoot = "";
 			targets = (
 				43776F8B1B8022E90074EA36 /* Loop */,
@@ -3913,6 +4275,96 @@
 			isa = PBXTargetDependency;
 			target = E9B07F7B253BBA6500BAD8F8 /* Loop Intent Extension */;
 			targetProxy = E9B07F92253BBA6500BAD8F8 /* PBXContainerItemProxy */;
+		};
+		D5E60B22B34F935BBC07A80D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = AmplitudeServiceKitPlugin;
+			targetProxy = 9571CADA66456111A65B57B0 /* PBXContainerItemProxy */;
+		};
+		DFC65ED345C8056AB8987AD5 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = MixpanelServiceKitPlugin;
+			targetProxy = BA868F01880BC7D41FF04A7D /* PBXContainerItemProxy */;
+		};
+		67996205300E0CD3CFED34B6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = NightscoutServiceKitPlugin;
+			targetProxy = 7D49CBE97B9134B5E5E32630 /* PBXContainerItemProxy */;
+		};
+		65CF3E768210B5F12ADE95FC /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = MedtrumKitPlugin;
+			targetProxy = 0FCC060E7CF87F851E18AAC4 /* PBXContainerItemProxy */;
+		};
+		BE5F262DDDFAAC3370BE3F8A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = MinimedKitPlugin;
+			targetProxy = ADD09634275A6179DF090F06 /* PBXContainerItemProxy */;
+		};
+		6C36B7BBE8C62A84EF852ED6 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = OmnipodKitPlugin;
+			targetProxy = F5638CB12596E1FA304EE7D5 /* PBXContainerItemProxy */;
+		};
+		8DC9E89346C4A9849FC1891E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = ShareClientPlugin;
+			targetProxy = 301F6CB602D2A289BBD78779 /* PBXContainerItemProxy */;
+		};
+		835CD2D66EF2DDF3B8CB19E9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = LogglyServiceKitPlugin;
+			targetProxy = D1BEE23689C903881D44AA72 /* PBXContainerItemProxy */;
+		};
+		C76BF9455B96A4BCCEDE1719 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = TidepoolServiceKitPlugin;
+			targetProxy = C110AB5F675AACBE3D0CDC02 /* PBXContainerItemProxy */;
+		};
+		972D8D7245A203F485FFE502 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = CGMBLEKitG5Plugin;
+			targetProxy = B1284F7C90E2471A09784BAA /* PBXContainerItemProxy */;
+		};
+		9D9BFC5E0DD412A4C963E376 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = CGMBLEKitG6Plugin;
+			targetProxy = 5CEFD7DDDEB327F499490FF8 /* PBXContainerItemProxy */;
+		};
+		9EF8852763B0FD8B95BB0250 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = EversenseKitPlugin;
+			targetProxy = CE6DA13C55F2B9221C436C05 /* PBXContainerItemProxy */;
+		};
+		C9E52AA31AE792D99C4A0E43 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = G7SensorPlugin;
+			targetProxy = C109ABF9EFCDFE967C4C9C3F /* PBXContainerItemProxy */;
+		};
+		71740DECA8680B1711BDBF9F /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = LibreTransmitterPlugin;
+			targetProxy = 8F59F4C30FBAAE8C0D325C1B /* PBXContainerItemProxy */;
+		};
+		75BADBC6E471ACC770FF00E0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = LibreDemoPlugin;
+			targetProxy = D23F65C44EDFFD25018B48B9 /* PBXContainerItemProxy */;
+		};
+		136EA3C77BC0967C734B6DC7 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = LoopSupportPlugin;
+			targetProxy = BAE22E1BE6ABF5E14BC64C92 /* PBXContainerItemProxy */;
+		};
+		3B88C765F47AFB76AC9120C7 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = LoopOnboardingPlugin;
+			targetProxy = E7653D87EE5FBC00B6B58456 /* PBXContainerItemProxy */;
+		};
+		F964FD178A41B0F87F4BBB62 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = NightscoutRemoteCGMPlugin;
+			targetProxy = E7C584D6EF61EA93F3E027DD /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
