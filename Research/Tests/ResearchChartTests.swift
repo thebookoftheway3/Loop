@@ -40,13 +40,59 @@ private final class TestResearchJournal: ResearchJournalStore {
     var evidenceRecords: [[String: Any]] = []
     func appendEvidence(_ rows: [[String: Any]]) throws { evidenceRecords.append(contentsOf: rows) }
     var failRemoval = false
-    func append(_ samples: [NewGlucoseSample], receivedAt: Date) throws {}
+    var appendCount = 0
+    func append(_ samples: [NewGlucoseSample], receivedAt: Date) throws { appendCount += samples.count }
     func export() throws {}
     func disableExport() throws { if failRemoval { throw CocoaError(.fileWriteNoPermission) } }
 }
 
 @MainActor
 final class ResearchLifecycleTests: XCTestCase {
+    func testRepeatedReadingsAndTransportFailureKeepAutomaticCollectionRunning() throws {
+        let defaults = UserDefaults.standard
+        let keys = ["researchCollectionConsent", "researchCGM", "researchCollectionPaused"]
+        let saved = keys.map { defaults.object(forKey: $0) }
+        defer { for (key, value) in zip(keys, saved) { defaults.set(value, forKey: key) } }
+        defaults.set(true, forKey: "researchCollectionConsent")
+        defaults.set(false, forKey: "researchCollectionPaused")
+        defaults.removeObject(forKey: "researchCGM")
+        let journal = TestResearchJournal()
+        var active = true
+        let controller = ResearchController(journalFactory: { journal }, isApplicationActive: { active })
+        controller.loadViewIfNeeded()
+        let manager = try XCTUnwrap(G6CGMManager(rawState: ["transmitterID": "000000"]))
+        controller.cgmManagerOnboarding(didCreateCGMManager: manager)
+        defer { controller.stopResearchObservation(reason: "Test complete") }
+        XCTAssertTrue(controller.isForegroundCollecting)
+        let sample = NewGlucoseSample(date: Date(), quantity: HKQuantity(unit: HKUnit(from: "mg/dL"), doubleValue: 123), condition: nil, trend: nil, trendRate: nil, isDisplayOnly: false, wasUserEntered: false, syncIdentifier: "synthetic-repeat")
+        for _ in 0..<3 {
+            controller.cgmManager(manager, hasNew: .newData([sample]))
+            XCTAssertTrue(controller.isForegroundCollecting, "A successful reading must not stop collection")
+            controller.cgmManager(manager, hasNew: .error(TransmitterError.controlError("synthetic subscription failure")))
+            XCTAssertTrue(controller.isForegroundCollecting)
+            XCTAssertTrue(controller.researchStatus.contains("notification setup interrupted"))
+        }
+        XCTAssertEqual(journal.appendCount, 3)
+        controller.toggleCollection()
+        XCTAssertFalse(controller.isForegroundCollecting)
+        XCTAssertFalse(manager.transmitter.stayConnected)
+        controller.cgmManager(manager, hasNew: .newData([sample]))
+        XCTAssertEqual(journal.appendCount, 3, "Paused collection must reject queued data")
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        XCTAssertFalse(controller.isForegroundCollecting, "Owner pause survives foreground activation")
+        controller.toggleCollection()
+        XCTAssertTrue(controller.isForegroundCollecting)
+        active = false
+        NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
+        XCTAssertFalse(controller.isForegroundCollecting)
+        active = true
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        XCTAssertTrue(controller.isForegroundCollecting, "Foreground return needs no manual retry")
+        controller.stopResearchObservation(reason: "Revoked")
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        XCTAssertFalse(controller.isForegroundCollecting)
+    }
+
     func testStorageFailureRevokesConsentBeforeRestoringG6() {
         let defaults = UserDefaults.standard
         let oldConsent = defaults.object(forKey: "researchCollectionConsent")
@@ -80,7 +126,8 @@ final class ResearchConnectionProbeTests: XCTestCase {
         probe.start(at: 100)
         XCTAssertTrue(probe.permitsAttempt(at: 195, active: true, consented: true))
         XCTAssertTrue(probe.permitsAttempt(at: 459, active: true, consented: true))
-        XCTAssertFalse(probe.permitsAttempt(at: 460, active: true, consented: true))
+        XCTAssertTrue(probe.permitsAttempt(at: 460, active: true, consented: true))
+        XCTAssertTrue(probe.permitsAttempt(at: 3700, active: true, consented: true))
     }
     func testShortExistingConnectionWindowCanBeObservedAfterNinetyFiveSeconds() {
         var probe = ResearchConnectionProbe()
@@ -117,7 +164,17 @@ final class ResearchPassiveSubscriptionTests: XCTestCase {
     func testLateAttachmentSubscribesToControlWithoutAuthenticationEvent() throws {
         var calls: [CGMServiceCharacteristicUUID] = []
         try ResearchPassiveSubscriptions.subscribe(stillObserving: { true }) { calls.append($0) }
-        XCTAssertEqual(calls, [.control, .authentication])
+        XCTAssertEqual(calls, [.control], "Authentication subscription is not required for control data")
+    }
+    func testReconnectsNeverAttemptFailingAuthenticationSubscription() throws {
+        var controlRequests = 0
+        for _ in 0..<3 {
+            try ResearchPassiveSubscriptions.subscribe(stillObserving: { true }) {
+                if $0 == .authentication { throw Failure.rejected }
+                controlRequests += 1
+            }
+        }
+        XCTAssertEqual(controlRequests, 3)
     }
     func testRevokedObserverSubscribesToNothing() throws {
         var calls: [CGMServiceCharacteristicUUID] = []
