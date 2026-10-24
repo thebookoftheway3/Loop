@@ -70,3 +70,41 @@ final class ResearchLifecycleTests: XCTestCase {
         XCTAssertFalse(UserDefaults.standard.bool(forKey: "researchCollectionConsent"))
     }
 }
+
+final class ResearchConnectionProbeTests: XCTestCase {
+    func testExistingConnectionWindowBeyondOldOneMinuteLimitIsChecked() {
+        var probe = ResearchConnectionProbe()
+        probe.start(at: 100)
+        XCTAssertTrue(probe.permitsAttempt(at: 195, active: true, consented: true))
+        XCTAssertTrue(probe.permitsAttempt(at: 459, active: true, consented: true))
+        XCTAssertFalse(probe.permitsAttempt(at: 460, active: true, consented: true))
+    }
+    func testShortExistingConnectionWindowCanBeObservedAfterNinetyFiveSeconds() {
+        var probe = ResearchConnectionProbe()
+        probe.start(at: 100)
+        var observed = false
+        for uptime in stride(from: 100.0, through: 459.0, by: ResearchConnectionProbe.interval) {
+            if probe.permitsAttempt(at: uptime, active: true, consented: true), (195.0...195.5).contains(uptime) {
+                observed = true
+            }
+        }
+        XCTAssertTrue(observed, "The old 10-second/one-minute retry misses this synthetic connection window")
+    }
+    func testBackgroundOrRevocationStopsProbeUntilOwnerRestarts() {
+        for revoked in [false, true] {
+            var probe = ResearchConnectionProbe()
+            probe.start(at: 100)
+            XCTAssertFalse(probe.permitsAttempt(at: 101, active: revoked, consented: !revoked))
+            XCTAssertFalse(probe.permitsAttempt(at: 102, active: true, consented: true))
+            probe.start(at: 103)
+            XCTAssertTrue(probe.permitsAttempt(at: 104, active: true, consented: true))
+        }
+    }
+    func testClockAnomalyStopsProbe() {
+        var probe = ResearchConnectionProbe()
+        probe.start(at: 100)
+        XCTAssertFalse(probe.permitsAttempt(at: 99, active: true, consented: true))
+        probe.start(at: .nan)
+        XCTAssertFalse(probe.permitsAttempt(at: 101, active: true, consented: true))
+    }
+}

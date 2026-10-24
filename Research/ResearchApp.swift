@@ -120,6 +120,8 @@ final class ResearchController: UIViewController, CGMManagerDelegate, CGMManager
     required init?(coder: NSCoder) { fatalError("Research UI does not use storyboards") }
     private let status = UILabel()
     private let lastObservation = UILabel()
+    private let connectionDiagnostics = UILabel()
+    private var connectionProbe = ResearchConnectionProbe()
     private let history = UITextView()
     private let chartView = ChartContainerView()
     private let glucoseChart = PredictedGlucoseChart()
@@ -129,20 +131,21 @@ final class ResearchController: UIViewController, CGMManagerDelegate, CGMManager
     private var exportEnabled = false
     private var retryTimer: Timer?
     private var displayTimer: Timer?
-    deinit { retryTimer?.invalidate(); displayTimer?.invalidate() }
+    deinit { retryTimer?.invalidate(); displayTimer?.invalidate(); NotificationCenter.default.removeObserver(self) }
     private let preference = DisplayGlucosePreference(displayGlucoseUnit: HKUnit(from: "mg/dL"))
     private let chartColors = ChartColorPalette(axisLine: .separator, axisLabel: .secondaryLabel, grid: .separator, glucoseTint: .systemBlue, insulinTint: .systemGray, carbTint: .systemGray)
     private var palette: LoopUIColorPalette { LoopUIColorPalette(guidanceColors: GuidanceColors(), carbTintColor: .gray, glucoseTintColor: .blue, insulinTintColor: .gray, loopStatusColorPalette: StateColorPalette(unknown: .gray, normal: .blue, warning: .orange, error: .red), chartColorPalette: chartColors) }
 
     override func viewDidLoad() {
-        super.viewDidLoad(); title = "Loop G6 Research"; view.backgroundColor = .systemBackground
+        super.viewDidLoad(); NotificationCenter.default.addObserver(self, selector: #selector(stopForegroundProbe), name: UIApplication.didEnterBackgroundNotification, object: nil); title = "Loop G6 Research"; view.backgroundColor = .systemBackground
         lastObservation.numberOfLines = 0; lastObservation.font = .preferredFont(forTextStyle: .caption1)
+        connectionDiagnostics.numberOfLines = 0; connectionDiagnostics.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
         status.numberOfLines = 0; status.text = "Read-only G6 research. No pump connection, dosing or treatment controls. Keep the G6 app and Basal-IQ operating independently."
         history.isEditable = false; history.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
         setupButton.setTitle("Consent and configure G6", for: .normal); setupButton.addTarget(self, action: #selector(configure), for: .touchUpInside)
         exportButton.setTitle("Enable local research export", for: .normal); exportButton.addTarget(self, action: #selector(toggleExport), for: .touchUpInside)
         let retry = UIButton(type: .system); retry.setTitle("Retry existing G6 connection", for: .normal); retry.addTarget(self, action: #selector(retryExistingConnection), for: .touchUpInside)
-        let stack = UIStackView(arrangedSubviews: [status, lastObservation, setupButton, retry, chartView, exportButton, history]); stack.axis = .vertical; stack.spacing = 12; stack.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(stack)
+        let stack = UIStackView(arrangedSubviews: [status, lastObservation, setupButton, retry, connectionDiagnostics, chartView, exportButton, history]); stack.axis = .vertical; stack.spacing = 12; stack.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(stack)
         NSLayoutConstraint.activate([stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12), stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16), stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16), stack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12), chartView.heightAnchor.constraint(equalToConstant: 220)])
         charts = ChartsManager(colors: chartColors, settings: ChartSettings(), charts: [glucoseChart], traitCollection: traitCollection)
         // Axis bounds describe the display, never fabricated sensor samples.
@@ -162,19 +165,35 @@ final class ResearchController: UIViewController, CGMManagerDelegate, CGMManager
         if UserDefaults.standard.bool(forKey: "researchCollectionConsent"), let state = UserDefaults.standard.dictionary(forKey: "researchCGM"), let identifier = state["identifier"] as? String, ResearchPolicy.permitsCGM(identifier), let raw = state["state"] as? [String: Any], let restored = G6CGMManager(rawState: raw) { adopt(restored) }
     }
     @objc private func retryExistingConnection() {
-        guard let manager else { status.text = "Configure G6 after consent before retrying an existing connection."; return }
-        status.text = "Looking only for the existing iOS G6 connection. No scanning or pairing fallback."
+        guard manager != nil else { status.text = "Configure G6 after consent before retrying an existing connection."; return }
+        status.text = "Checking the existing G6 connection for up to six minutes while this app stays foregrounded. No scanning or pairing fallback."
         retryTimer?.invalidate()
-        var remaining = 6
-        func attempt() {
-            guard self.manager === manager, UserDefaults.standard.bool(forKey: "researchCollectionConsent") else { return }
-            manager.fetchNewDataIfNeeded { [weak self] result in self?.cgmManager(manager, hasNew: result) }
+        connectionProbe.start(at: ProcessInfo.processInfo.systemUptime)
+        attemptExistingConnection()
+        retryTimer = Timer.scheduledTimer(withTimeInterval: ResearchConnectionProbe.interval, repeats: true) { [weak self] timer in
+            guard let self else { timer.invalidate(); return }
+            self.attemptExistingConnection()
         }
-        attempt()
-        retryTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] timer in
-            guard let self, UIApplication.shared.applicationState == .active, remaining > 0 else { timer.invalidate(); return }
-            remaining -= 1; attempt()
+    }
+    @objc private func stopForegroundProbe() {
+        retryTimer?.invalidate(); retryTimer = nil; connectionProbe.cancel()
+        refreshConnectionDiagnostics()
+    }
+    private func attemptExistingConnection() {
+        guard let manager, connectionProbe.permitsAttempt(at: ProcessInfo.processInfo.systemUptime,
+            active: UIApplication.shared.applicationState == .active,
+            consented: UserDefaults.standard.bool(forKey: "researchCollectionConsent")) else {
+            retryTimer?.invalidate(); retryTimer = nil; connectionProbe.cancel()
+            refreshConnectionDiagnostics()
+            return
         }
+        manager.fetchNewDataIfNeeded { [weak self] result in self?.cgmManager(manager, hasNew: result) }
+        refreshConnectionDiagnostics()
+    }
+    private func refreshConnectionDiagnostics() {
+        guard let manager else { connectionDiagnostics.text = nil; return }
+        let probe = connectionProbe.startedAt == nil ? "Foreground retry stopped; tap Retry to run again." : "Foreground retry active (up to six minutes)."
+        connectionDiagnostics.text = manager.transmitter.researchConnectionDiagnostics.summary + "\n" + probe
     }
     @objc private func configure() {
         if let manager { showManagerUI(manager.settingsViewController(bluetoothProvider: self, displayGlucosePreference: preference, colorPalette: palette, allowDebugFeatures: false)); return }
@@ -212,6 +231,7 @@ final class ResearchController: UIViewController, CGMManagerDelegate, CGMManager
         return charts.chart(atIndex: 0, frame: frame)?.view
     }
     private func refresh() {
+        refreshConnectionDiagnostics()
         let values = journal?.chartValues ?? []; glucoseChart.setGlucoseValues(values); charts.startDate = Date().addingTimeInterval(-6 * 3600); charts.maxEndDate = Date(); charts.prerender(); charts.invalidateChart(atIndex: 0); chartView.reloadChart()
         let rows = (journal?.records ?? []).sorted { ($0["event_at"] as? String ?? "") < ($1["event_at"] as? String ?? "") }
         history.text = rows.suffix(100).reversed().map { row in
@@ -235,7 +255,7 @@ final class ResearchController: UIViewController, CGMManagerDelegate, CGMManager
         guard manager === self.manager, UserDefaults.standard.bool(forKey: "researchCollectionConsent") else { return }
         guard let journal else { stopResearchObservation(reason: "Research journal unavailable; consent must be renewed after storage is repaired."); return }
         switch readingResult {
-        case .newData(let samples): do { retryTimer?.invalidate(); try journal.append(samples, receivedAt: Date()); if exportEnabled { try journal.export() }; status.text = "Observed \(samples.count) G6 reading(s). Research only; treatment remains independent."; refresh() } catch { stopResearchObservation(reason: "Research collection paused: \(error.localizedDescription). Repair storage and renew consent before resuming.") }
+        case .newData(let samples): do { retryTimer?.invalidate(); connectionProbe.cancel(); try journal.append(samples, receivedAt: Date()); if exportEnabled { try journal.export() }; status.text = "Observed \(samples.count) G6 reading(s). Research only; treatment remains independent."; refresh() } catch { stopResearchObservation(reason: "Research collection paused: \(error.localizedDescription). Repair storage and renew consent before resuming.") }
         case .unreliableData: status.text = "G6 reported unreliable data. No glucose observation added."
         case .noData: break
         case .error(let error): showError(error)
@@ -249,12 +269,13 @@ final class ResearchController: UIViewController, CGMManagerDelegate, CGMManager
         stopResearchObservation(reason: "Local G6 research observation stopped. Existing treatment remains independent.")
     }
     func stopResearchObservation(reason: String) {
-        retryTimer?.invalidate(); retryTimer = nil
+        retryTimer?.invalidate(); retryTimer = nil; connectionProbe.cancel()
         UserDefaults.standard.set(false, forKey: "researchCollectionConsent")
         self.manager?.cgmManagerDelegate = nil
         self.manager?.transmitter.stayConnected = false
         self.manager?.transmitter.stopScanning()
         self.manager = nil
+        refreshConnectionDiagnostics()
         UserDefaults.standard.removeObject(forKey: "researchCGM")
         exportEnabled = false
         exportButton.setTitle("Enable local research export", for: .normal)

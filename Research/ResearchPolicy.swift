@@ -7,3 +7,20 @@ enum ResearchPolicy {
     static func permitsPump(_ identifier: String) -> Bool { false }
     static let sourceVersion = "loop-g6-passive-v1"
 }
+
+/// Owner-started, foreground-only lookup window. Uses monotonic uptime, not health timestamps.
+struct ResearchConnectionProbe {
+    static let interval: TimeInterval = 1
+    static let duration: TimeInterval = 360
+    private(set) var startedAt: TimeInterval?
+    mutating func start(at uptime: TimeInterval) { startedAt = uptime.isFinite ? uptime : nil }
+    mutating func cancel() { startedAt = nil }
+    mutating func permitsAttempt(at uptime: TimeInterval, active: Bool, consented: Bool) -> Bool {
+        guard active, consented, let start = startedAt, uptime.isFinite,
+              uptime >= start, uptime - start < Self.duration else {
+            cancel()
+            return false
+        }
+        return true
+    }
+}
