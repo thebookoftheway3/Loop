@@ -24,3 +24,21 @@ struct ResearchConnectionProbe {
         return true
     }
 }
+
+/// Operational counters only: no glucose, transmitter IDs or health timestamps.
+struct ResearchRuntimeStatus: Encodable {
+    let schema = "project-live.collection-status"
+    let version = 1
+    var journalCount = 0
+    var backgroundCallbacks = 0
+    var backgroundTimedSamples = 0
+    var transportErrors = 0
+    var foregroundActive = false
+    var collectionEnabled = false
+    var bluetooth = ""
+
+    mutating func received(background: Bool, timedSamples: Int, transportError: Bool) {
+        if background { backgroundCallbacks += 1; backgroundTimedSamples += max(0, timedSamples) }
+        if transportError { transportErrors += 1 }
+    }
+}

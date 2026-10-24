@@ -18,7 +18,11 @@ final class ResearchApp: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
     func application(_ application: UIApplication, didFinishLaunchingWithOptions options: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
-        window?.rootViewController = UINavigationController(rootViewController: ResearchController())
+        let controller = ResearchController()
+        // Restoration launches may have no foreground view appearance. Recreate
+        // consented storage/CGM now so CoreBluetooth can deliver restored events.
+        controller.loadViewIfNeeded()
+        window?.rootViewController = UINavigationController(rootViewController: controller)
         window?.makeKeyAndVisible()
         return true
     }
@@ -169,14 +173,18 @@ final class ResearchController: UIViewController, CGMManagerDelegate, CGMManager
     private var journal: ResearchJournalStore?
     private let journalFactory: () throws -> ResearchJournalStore
     private let isApplicationActive: () -> Bool
+    private let isApplicationInBackground: () -> Bool
+    private(set) var runtimeStatus = ResearchRuntimeStatus()
     var isForegroundCollecting: Bool { retryTimer != nil && connectionProbe.startedAt != nil }
     var isResearchObserving: Bool { manager != nil }
     var researchStatus: String { status.text ?? "" }
     var researchReadout: String { lastObservation.text ?? "" }
     init(journalFactory: @escaping () throws -> ResearchJournalStore = { try ResearchJournal() },
-         isApplicationActive: @escaping () -> Bool = { UIApplication.shared.applicationState == .active }) {
+         isApplicationActive: @escaping () -> Bool = { UIApplication.shared.applicationState == .active },
+         isApplicationInBackground: @escaping () -> Bool = { UIApplication.shared.applicationState == .background }) {
         self.journalFactory = journalFactory
         self.isApplicationActive = isApplicationActive
+        self.isApplicationInBackground = isApplicationInBackground
         super.init(nibName: nil, bundle: nil)
     }
     required init?(coder: NSCoder) { fatalError("Research UI does not use storyboards") }
@@ -239,15 +247,38 @@ final class ResearchController: UIViewController, CGMManagerDelegate, CGMManager
             stopForegroundProbe()
             manager?.transmitter.stopScanning()
             status.text = "Research collection paused. Stored observations retained."
-        } else { startForegroundCollection() }
+        } else { enableBackgroundObservation(); startForegroundCollection() }
         refreshConnectionDiagnostics()
+        saveRuntimeStatus()
+    }
+    private func enableBackgroundObservation() {
+        guard let manager, UserDefaults.standard.bool(forKey: "researchCollectionConsent"),
+              !UserDefaults.standard.bool(forKey: "researchCollectionPaused") else { return }
+        manager.transmitter.stayConnected = true
+        saveRuntimeStatus()
+    }
+    private func saveRuntimeStatus() {
+        runtimeStatus.journalCount = journal?.records.count ?? 0
+        runtimeStatus.foregroundActive = isApplicationActive()
+        runtimeStatus.collectionEnabled = manager != nil && UserDefaults.standard.bool(forKey: "researchCollectionConsent") && !UserDefaults.standard.bool(forKey: "researchCollectionPaused")
+        runtimeStatus.bluetooth = manager?.transmitter.researchConnectionDiagnostics.summary ?? "observer stopped"
+        // Local diagnostic snapshot is separate from observations and their export.
+        // Failure to write diagnostics must not discard an otherwise stored sample.
+        do {
+            let fm = FileManager.default
+            var directory = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("G6ResearchStatus", isDirectory: true)
+            try fm.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication])
+            var flags = URLResourceValues(); flags.isExcludedFromBackup = true
+            try directory.setResourceValues(flags)
+            try JSONEncoder().encode(runtimeStatus).write(to: directory.appendingPathComponent("status-v1.json"), options: [.atomic, .completeFileProtectionUntilFirstUserAuthentication])
+        } catch { /* Optional diagnostic snapshot; observation journal has its own fail-closed handling. */ }
     }
     @objc private func startForegroundCollection() {
         guard let manager, isApplicationActive(),
               UserDefaults.standard.bool(forKey: "researchCollectionConsent"),
               !UserDefaults.standard.bool(forKey: "researchCollectionPaused") else { return }
         guard retryTimer == nil else { return }
-        status.text = "Collecting automatically while this app is open. Waiting for the existing G6 connection; no pairing or scanning fallback."
+        status.text = "Collection enabled. iOS connection events can resume observation in the background. Waiting for the existing G6 connection."
         connectionProbe.start(at: ProcessInfo.processInfo.systemUptime)
         manager.transmitter.stayConnected = true
         attemptExistingConnection()
@@ -259,6 +290,7 @@ final class ResearchController: UIViewController, CGMManagerDelegate, CGMManager
     @objc private func stopForegroundProbe() {
         retryTimer?.invalidate(); retryTimer = nil; connectionProbe.cancel()
         refreshConnectionDiagnostics()
+        saveRuntimeStatus()
     }
     private func attemptExistingConnection() {
         guard let manager, connectionProbe.permitsAttempt(at: ProcessInfo.processInfo.systemUptime,
@@ -277,7 +309,7 @@ final class ResearchController: UIViewController, CGMManagerDelegate, CGMManager
         guard let manager else { connectionDiagnostics.text = nil; return }
         let paused = UserDefaults.standard.bool(forKey: "researchCollectionPaused")
         collectionButton.setTitle(paused ? "Resume collection" : "Pause collection", for: .normal)
-        let probe = paused ? "Collection paused by owner." : (connectionProbe.startedAt == nil ? "Foreground collection resumes when the app is active." : "Automatic foreground collection active; no repeated retries needed.")
+        let probe = paused ? "Collection paused by owner." : (connectionProbe.startedAt == nil ? "Background observation armed; waiting for iOS Bluetooth events." : "Background observation armed; foreground lookup also active.")
         connectionDiagnostics.text = manager.transmitter.researchConnectionDiagnostics.summary + "\n" + probe
     }
     @objc private func configure() {
@@ -295,7 +327,7 @@ final class ResearchController: UIViewController, CGMManagerDelegate, CGMManager
         }); present(alert, animated: true)
     }
     private func showManagerUI(_ controller: CGMManagerViewController) { var vc = controller; vc.cgmManagerOnboardingDelegate = self; vc.completionDelegate = self; present(vc, animated: true) }
-    private func adopt(_ cgm: G6CGMManager) { guard journal != nil, UserDefaults.standard.bool(forKey: "researchCollectionConsent") else { cgm.transmitter.stopScanning(); return }; manager = cgm; cgm.delegateQueue = .main; cgm.cgmManagerDelegate = self; cgmManagerDidUpdateState(cgm); setupButton.setTitle("G6 settings", for: .normal); status.text = "Waiting for observed G6 data. No pump is configured. Simulator builds generate no glucose readings."; if UserDefaults.standard.bool(forKey: "researchCollectionPaused") { cgm.transmitter.stopScanning() }; startForegroundCollection(); refreshConnectionDiagnostics() }
+    private func adopt(_ cgm: G6CGMManager) { guard journal != nil, UserDefaults.standard.bool(forKey: "researchCollectionConsent") else { cgm.transmitter.stopScanning(); return }; manager = cgm; cgm.delegateQueue = .main; cgm.cgmManagerDelegate = self; cgmManagerDidUpdateState(cgm); setupButton.setTitle("G6 settings", for: .normal); status.text = "Waiting for observed G6 data. No pump is configured. Simulator builds generate no glucose readings."; if UserDefaults.standard.bool(forKey: "researchCollectionPaused") { cgm.transmitter.stopScanning() }; enableBackgroundObservation(); startForegroundCollection(); refreshConnectionDiagnostics() }
     func cgmManagerOnboarding(didCreateCGMManager cgm: CGMManagerUI) { guard ResearchPolicy.permitsCGM(type(of: cgm).pluginIdentifier), let g6 = cgm as? G6CGMManager else { return }; adopt(g6) }
     func cgmManagerOnboarding(didOnboardCGMManager cgm: CGMManagerUI) { cgmManagerOnboarding(didCreateCGMManager: cgm) }
     func completionNotifyingDidComplete(_ object: CompletionNotifying) { dismiss(animated: true) }
@@ -318,6 +350,7 @@ final class ResearchController: UIViewController, CGMManagerDelegate, CGMManager
     }
     private func refresh() {
         persistResearchEvidence()
+        guard isApplicationActive() else { return } // Persist callbacks without chart/UI work during a Bluetooth wake.
         refreshConnectionDiagnostics()
         let values = journal?.chartValues ?? []; chartHeight.constant = values.isEmpty ? 0 : 220; glucoseChart.setGlucoseValues(values); charts.startDate = Date().addingTimeInterval(-6 * 3600); charts.maxEndDate = Date(); charts.prerender(); charts.invalidateChart(atIndex: 0); chartView.reloadChart()
         let rows = (journal?.records ?? []).sorted { ($0["event_at"] as? String ?? "") < ($1["event_at"] as? String ?? "") }
@@ -373,14 +406,21 @@ final class ResearchController: UIViewController, CGMManagerDelegate, CGMManager
         guard let journal else { stopResearchObservation(reason: "Research journal unavailable; consent must be renewed after storage is repaired."); return }
         persistResearchEvidence()
         guard manager === self.manager else { return }
+        var storedSamples = 0
+        var transportError = false
+        defer {
+            runtimeStatus.received(background: isApplicationInBackground(), timedSamples: storedSamples, transportError: transportError)
+            saveRuntimeStatus()
+        }
         switch readingResult {
-        case .newData(let samples): do { try journal.append(samples, receivedAt: Date()); if exportEnabled { try journal.export() }; status.text = "Observed \(samples.count) G6 reading(s). Research only; treatment remains independent."; refresh() } catch { stopResearchObservation(reason: "Research collection paused: \(error.localizedDescription). Repair storage and renew consent before resuming.") }
+        case .newData(let samples): do { try journal.append(samples, receivedAt: Date()); storedSamples = samples.count; if exportEnabled { try journal.export() }; status.text = "Stored \(journal.records.count) timestamped G6 reading(s). Collection remains enabled; treatment stays independent."; refresh() } catch { stopResearchObservation(reason: "Research collection paused: \(error.localizedDescription). Repair storage and renew consent before resuming.") }
         case .unreliableData: status.text = "G6 reported unreliable data. No glucose observation added."
         case .noData: refresh()
         case .error(let error):
+            transportError = true
             if let transport = error as? TransmitterError {
                 switch transport {
-                case .controlError: status.text = "G6 notification setup interrupted. Stored readings retained; automatic collection will retry while this app is open."
+                case .controlError: status.text = "G6 notification setup interrupted. Stored readings retained; waiting for the next existing G6 connection event."
                 case .authenticationError: status.text = "G6 authentication observation failed. No authentication commands issued. Stored readings retained."
                 case .observationError: status.text = "G6 observation could not be accepted. Stored readings retained; see packet diagnostics."
                 }
@@ -401,6 +441,7 @@ final class ResearchController: UIViewController, CGMManagerDelegate, CGMManager
         self.manager?.transmitter.stayConnected = false
         self.manager?.transmitter.stopScanning()
         self.manager = nil
+        saveRuntimeStatus()
         persistedEvidenceSnapshots.removeAll()
         refreshConnectionDiagnostics()
         UserDefaults.standard.removeObject(forKey: "researchCGM")

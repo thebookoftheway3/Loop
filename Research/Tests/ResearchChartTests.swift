@@ -58,7 +58,7 @@ final class ResearchLifecycleTests: XCTestCase {
         defaults.removeObject(forKey: "researchCGM")
         let journal = TestResearchJournal()
         var active = true
-        let controller = ResearchController(journalFactory: { journal }, isApplicationActive: { active })
+        let controller = ResearchController(journalFactory: { journal }, isApplicationActive: { active }, isApplicationInBackground: { !active })
         controller.loadViewIfNeeded()
         let manager = try XCTUnwrap(G6CGMManager(rawState: ["transmitterID": "000000"]))
         controller.cgmManagerOnboarding(didCreateCGMManager: manager)
@@ -85,12 +85,34 @@ final class ResearchLifecycleTests: XCTestCase {
         active = false
         NotificationCenter.default.post(name: UIApplication.willResignActiveNotification, object: nil)
         XCTAssertFalse(controller.isForegroundCollecting)
+        XCTAssertTrue(manager.transmitter.stayConnected, "Backgrounding must retain event-driven observation")
+        controller.cgmManager(manager, hasNew: .newData([sample]))
+        XCTAssertEqual(journal.appendCount, 4)
+        XCTAssertEqual(controller.runtimeStatus.backgroundTimedSamples, 1)
         active = true
         NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
         XCTAssertTrue(controller.isForegroundCollecting, "Foreground return needs no manual retry")
         controller.stopResearchObservation(reason: "Revoked")
         NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
         XCTAssertFalse(controller.isForegroundCollecting)
+    }
+
+    func testColdBackgroundLaunchRestoresConsentedObserverWithoutForegroundTimer() {
+        let defaults = UserDefaults.standard
+        let keys = ["researchCollectionConsent", "researchCGM", "researchCollectionPaused"]
+        let saved = keys.map { defaults.object(forKey: $0) }
+        defer { for (key, value) in zip(keys, saved) { defaults.set(value, forKey: key) } }
+        for paused in [false, true] {
+            defaults.set(true, forKey: "researchCollectionConsent")
+            defaults.set(paused, forKey: "researchCollectionPaused")
+            defaults.set(["identifier": "DexG6Transmitter", "state": ["transmitterID": "000000"]], forKey: "researchCGM")
+            let controller = ResearchController(journalFactory: { TestResearchJournal() }, isApplicationActive: { false }, isApplicationInBackground: { true })
+            controller.loadViewIfNeeded()
+            XCTAssertTrue(controller.isResearchObserving)
+            XCTAssertFalse(controller.isForegroundCollecting)
+            if !paused { XCTAssertTrue(controller.runtimeStatus.collectionEnabled) }
+            controller.stopResearchObservation(reason: "Test complete")
+        }
     }
 
     func testStorageFailureRevokesConsentBeforeRestoringG6() {
@@ -304,4 +326,70 @@ final class ResearchUntimedEvidenceTests: XCTestCase {
         XCTAssertTrue(try Data(contentsOf: journal.exportURL).isEmpty)
     }
 
+}
+
+final class ResearchBackgroundRecoveryTests: XCTestCase {
+    private struct Peer {
+        let id: UUID
+        var matches = true
+        var connected = true
+    }
+    private func candidate(_ peers: [Peer], restored: Set<UUID>, enabled: Bool = true, powered: Bool = true) -> Peer? {
+        ResearchConnectionRecovery.restoredCandidate(enabled: enabled, poweredOn: powered, restoredIDs: restored,
+            systemConnected: peers, id: { $0.id }, matches: { $0.matches }, locallyConnected: { $0.connected })
+    }
+    func testConnectionEventTriggersFreshLookupOnlyWhenEnabledAndConnected() {
+        var queries = 0
+        for enabled in [false, true] {
+            for connected in [false, true] {
+                ResearchConnectionRecovery.onEvent(enabled: enabled, peerConnected: connected) { queries += 1 }
+            }
+        }
+        XCTAssertEqual(queries, 1)
+    }
+    func testRestorationRequiresFreshSystemConnectionAndConfiguredMatch() {
+        let peer = Peer(id: UUID())
+        XCTAssertEqual(candidate([peer], restored: [peer.id])?.id, peer.id)
+        XCTAssertNil(candidate([], restored: [peer.id]), "Cached restoration alone cannot authorize reconnect")
+        XCTAssertNil(candidate([peer], restored: [UUID()]), "A different peer must not be attached as restored")
+        var wrong = peer; wrong.matches = false
+        XCTAssertNil(candidate([wrong], restored: [peer.id]))
+        var disconnected = peer; disconnected.connected = false
+        XCTAssertNil(candidate([disconnected], restored: [peer.id]))
+    }
+    func testRestorationWaitsForPowerAndConsentActivation() {
+        let peer = Peer(id: UUID())
+        XCTAssertNil(candidate([peer], restored: [peer.id], enabled: false))
+        XCTAssertNil(candidate([peer], restored: [peer.id], powered: false))
+        XCTAssertEqual(candidate([peer], restored: [peer.id])?.id, peer.id)
+    }
+    func testConfigurationInvalidationDoesNotBlockBluetoothCallbacks() {
+        let queue = DispatchQueue(label: "synthetic.discovery")
+        let release = DispatchSemaphore(value: 0)
+        let waiting = expectation(description: "Discovery awaiting Bluetooth callback")
+        let returned = expectation(description: "Bluetooth callback queue returns")
+        let updated = expectation(description: "Ordered configuration invalidation")
+        queue.async { waiting.fulfill(); release.wait() }
+        wait(for: [waiting], timeout: 1)
+        DispatchQueue.global().async {
+            ResearchPeripheralConfiguration.invalidate(on: queue) { updated.fulfill() }
+            returned.fulfill()
+        }
+        let result = XCTWaiter.wait(for: [returned], timeout: 0.5)
+        release.signal() // release even if the old synchronous implementation failed
+        XCTAssertEqual(result, .completed, "Callback must not wait behind its own discovery response")
+        wait(for: [updated], timeout: 2)
+    }
+    func testOperationalStatusContainsOnlyExplicitDiagnosticFields() throws {
+        var status = ResearchRuntimeStatus()
+        status.received(background: false, timedSamples: 1, transportError: false)
+        status.received(background: true, timedSamples: 2, transportError: false)
+        status.received(background: true, timedSamples: 0, transportError: true)
+        let data = try JSONEncoder().encode(status)
+        let row = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(Set(row.keys), ["schema", "version", "journalCount", "backgroundCallbacks", "backgroundTimedSamples", "transportErrors", "foregroundActive", "collectionEnabled", "bluetooth"])
+        XCTAssertEqual(status.backgroundTimedSamples, 2)
+        XCTAssertEqual(status.backgroundCallbacks, 2)
+        XCTAssertEqual(status.transportErrors, 1)
+    }
 }
