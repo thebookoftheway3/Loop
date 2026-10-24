@@ -2,6 +2,7 @@ import XCTest
 import HealthKit
 import LoopKit
 @testable import Loop
+@testable import CGMBLEKit
 
 @MainActor
 final class ResearchChartTests: XCTestCase {
@@ -106,5 +107,44 @@ final class ResearchConnectionProbeTests: XCTestCase {
         XCTAssertFalse(probe.permitsAttempt(at: 99, active: true, consented: true))
         probe.start(at: .nan)
         XCTAssertFalse(probe.permitsAttempt(at: 101, active: true, consented: true))
+    }
+}
+
+final class ResearchPassiveSubscriptionTests: XCTestCase {
+    private enum Failure: Error { case rejected }
+    func testLateAttachmentSubscribesToControlWithoutAuthenticationEvent() throws {
+        var calls: [CGMServiceCharacteristicUUID] = []
+        try ResearchPassiveSubscriptions.subscribe(stillObserving: { true }) { calls.append($0) }
+        XCTAssertEqual(calls, [.control, .authentication])
+    }
+    func testRevokedObserverSubscribesToNothing() throws {
+        var calls: [CGMServiceCharacteristicUUID] = []
+        try ResearchPassiveSubscriptions.subscribe(stillObserving: { false }) { calls.append($0) }
+        XCTAssertTrue(calls.isEmpty)
+    }
+    func testRevocationAfterFirstSubscriptionStopsNextSubscription() throws {
+        var observing = true
+        var calls: [CGMServiceCharacteristicUUID] = []
+        try ResearchPassiveSubscriptions.subscribe(stillObserving: { observing }) {
+            calls.append($0); observing = false
+        }
+        XCTAssertEqual(calls, [.control])
+    }
+    func testControlSubscriptionFailureDoesNotFallBackToAuthentication() {
+        var calls: [CGMServiceCharacteristicUUID] = []
+        XCTAssertThrowsError(try ResearchPassiveSubscriptions.subscribe(stillObserving: { true }) {
+            calls.append($0); throw Failure.rejected
+        })
+        XCTAssertEqual(calls, [.control])
+    }
+    func testAlreadyEnabledNotificationsDoNotIssueAnotherRequest() throws {
+        var changes = 0
+        ResearchPassiveSubscriptions.updateNotification(current: true, requested: true) { changes += 1 }
+        XCTAssertEqual(changes, 0)
+        ResearchPassiveSubscriptions.updateNotification(current: false, requested: true) { changes += 1 }
+        XCTAssertEqual(changes, 1)
+    }
+    func testNotificationChangeErrorPropagatesWithoutFallback() {
+        XCTAssertThrowsError(try ResearchPassiveSubscriptions.updateNotification(current: false, requested: true) { throw Failure.rejected })
     }
 }
