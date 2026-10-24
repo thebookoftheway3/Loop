@@ -28,13 +28,69 @@ final class ResearchApp: UIResponder, UIApplicationDelegate {
 protocol ResearchJournalStore: AnyObject {
     var records: [[String: Any]] { get }
     var chartValues: [GlucoseValue] { get }
+    var evidenceRecords: [[String: Any]] { get }
+    func appendEvidence(_ rows: [[String: Any]]) throws
     func append(_ samples: [NewGlucoseSample], receivedAt: Date) throws
     func export() throws
     func disableExport() throws
 }
 
+/// Original untimed packets and clock references stay outside timed observations/export.
+final class ResearchEvidenceJournal {
+    private let directory: URL
+    private let fm = FileManager.default
+    private(set) var records: [[String: Any]] = []
+    private var ids = Set<String>()
+    private(set) var duplicateCount = 0
+    private let iso: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]; return f
+    }()
+    init(directory: URL? = nil) throws {
+        self.directory = directory ?? fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("G6ResearchEvidence", isDirectory: true)
+        try fm.createDirectory(at: self.directory, withIntermediateDirectories: true, attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication])
+        var flags = URLResourceValues(); flags.isExcludedFromBackup = true
+        var url = self.directory; try url.setResourceValues(flags)
+        for file in try fm.contentsOfDirectory(at: self.directory, includingPropertiesForKeys: nil).sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) where file.pathExtension == "jsonl" {
+            for line in try String(contentsOf: file, encoding: .utf8).split(separator: "\n") {
+                guard let row = try JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any], let id = row["id"] as? String else { throw CocoaError(.fileReadCorruptFile) }
+                records.append(row); ids.insert(id)
+            }
+        }
+        try prune()
+    }
+    private func prune(now: Date = Date()) throws {
+        var calendar = Calendar(identifier: .gregorian); calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let cutoff = calendar.date(byAdding: .day, value: -6, to: calendar.startOfDay(for: now))!
+        let day = String(iso.string(from: cutoff).prefix(10))
+        for file in try fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) where file.pathExtension == "jsonl" && file.deletingPathExtension().lastPathComponent < day { try fm.removeItem(at: file) }
+        records = records.filter { ($0["received_at"] as? String).flatMap(iso.date).map { $0 >= cutoff } ?? false }
+        ids = Set(records.compactMap { $0["id"] as? String })
+    }
+    func append(_ rows: [[String: Any]]) throws {
+        try prune()
+        for row in rows {
+            guard let id = row["id"] as? String, let receipt = row["received_at"] as? String, iso.date(from: receipt) != nil,
+                  row["event_at"] is NSNull, ["project-live.cgm-untimed-packet", "project-live.cgm-clock-reference"].contains(row["schema"] as? String ?? "") else { throw CocoaError(.fileWriteInvalidFileName) }
+            if ids.contains(id) { duplicateCount += 1; continue }
+            let file = directory.appendingPathComponent(String(receipt.prefix(10)) + ".jsonl")
+            if !fm.fileExists(atPath: file.path) { guard fm.createFile(atPath: file.path, contents: nil, attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication]) else { throw CocoaError(.fileWriteUnknown) } }
+            let handle = try FileHandle(forWritingTo: file)
+            do {
+                try handle.seekToEnd()
+                var data = try JSONSerialization.data(withJSONObject: row, options: [.sortedKeys]); data.append(10)
+                try handle.write(contentsOf: data); try handle.synchronize(); try handle.close()
+            } catch { try? handle.close(); throw error }
+            records.append(row); ids.insert(id)
+        }
+        try prune()
+    }
+}
+
 final class ResearchJournal: ResearchJournalStore {
     private let fm = FileManager.default
+    private let evidence: ResearchEvidenceJournal
+    var evidenceRecords: [[String: Any]] { evidence.records }
+    func appendEvidence(_ rows: [[String: Any]]) throws { try evidence.append(rows) }
     private let directory: URL
     let exportURL: URL
     private(set) var records: [[String: Any]] = []
@@ -42,9 +98,10 @@ final class ResearchJournal: ResearchJournalStore {
     private let iso: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter(); f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]; return f
     }()
-    init() throws {
-        directory = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("G6Research", isDirectory: true)
-        exportURL = fm.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("LIVE/observations-v1.jsonl")
+    init(testRoot: URL? = nil) throws {
+        evidence = try ResearchEvidenceJournal(directory: testRoot?.appendingPathComponent("Evidence", isDirectory: true))
+        directory = testRoot?.appendingPathComponent("Timed", isDirectory: true) ?? fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("G6Research", isDirectory: true)
+        exportURL = testRoot?.appendingPathComponent("Export/observations-v1.jsonl") ?? fm.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("LIVE/observations-v1.jsonl")
         try fm.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication])
         var excluded = URLResourceValues(); excluded.isExcludedFromBackup = true
         var d = directory; try d.setResourceValues(excluded)
@@ -113,6 +170,7 @@ final class ResearchController: UIViewController, CGMManagerDelegate, CGMManager
     private let journalFactory: () throws -> ResearchJournalStore
     var isResearchObserving: Bool { manager != nil }
     var researchStatus: String { status.text ?? "" }
+    var researchReadout: String { lastObservation.text ?? "" }
     init(journalFactory: @escaping () throws -> ResearchJournalStore = { try ResearchJournal() }) {
         self.journalFactory = journalFactory
         super.init(nibName: nil, bundle: nil)
@@ -122,10 +180,12 @@ final class ResearchController: UIViewController, CGMManagerDelegate, CGMManager
     private let lastObservation = UILabel()
     private let connectionDiagnostics = UILabel()
     private var connectionProbe = ResearchConnectionProbe()
+    private var persistedEvidenceSnapshots = Set<UUID>()
     private let history = UITextView()
     private let chartView = ChartContainerView()
     private let glucoseChart = PredictedGlucoseChart()
     private var charts: ChartsManager!
+    private var chartHeight: NSLayoutConstraint!
     private let setupButton = UIButton(type: .system)
     private let exportButton = UIButton(type: .system)
     private var exportEnabled = false
@@ -145,8 +205,10 @@ final class ResearchController: UIViewController, CGMManagerDelegate, CGMManager
         setupButton.setTitle("Consent and configure G6", for: .normal); setupButton.addTarget(self, action: #selector(configure), for: .touchUpInside)
         exportButton.setTitle("Enable local research export", for: .normal); exportButton.addTarget(self, action: #selector(toggleExport), for: .touchUpInside)
         let retry = UIButton(type: .system); retry.setTitle("Retry existing G6 connection", for: .normal); retry.addTarget(self, action: #selector(retryExistingConnection), for: .touchUpInside)
-        let stack = UIStackView(arrangedSubviews: [status, lastObservation, setupButton, retry, connectionDiagnostics, chartView, exportButton, history]); stack.axis = .vertical; stack.spacing = 12; stack.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(stack)
-        NSLayoutConstraint.activate([stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12), stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16), stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16), stack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12), chartView.heightAnchor.constraint(equalToConstant: 220)])
+        let scroll = UIScrollView(); scroll.translatesAutoresizingMaskIntoConstraints = false; view.addSubview(scroll)
+        let stack = UIStackView(arrangedSubviews: [status, lastObservation, setupButton, retry, connectionDiagnostics, chartView, exportButton, history]); stack.axis = .vertical; stack.spacing = 12; stack.translatesAutoresizingMaskIntoConstraints = false; scroll.addSubview(stack)
+        chartHeight = chartView.heightAnchor.constraint(equalToConstant: 0)
+        NSLayoutConstraint.activate([scroll.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor), scroll.leadingAnchor.constraint(equalTo: view.leadingAnchor), scroll.trailingAnchor.constraint(equalTo: view.trailingAnchor), scroll.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor), stack.topAnchor.constraint(equalTo: scroll.contentLayoutGuide.topAnchor, constant: 12), stack.leadingAnchor.constraint(equalTo: scroll.contentLayoutGuide.leadingAnchor, constant: 16), stack.trailingAnchor.constraint(equalTo: scroll.contentLayoutGuide.trailingAnchor, constant: -16), stack.bottomAnchor.constraint(equalTo: scroll.contentLayoutGuide.bottomAnchor, constant: -12), stack.widthAnchor.constraint(equalTo: scroll.frameLayoutGuide.widthAnchor, constant: -32), chartHeight, history.heightAnchor.constraint(equalToConstant: 180)])
         charts = ChartsManager(colors: chartColors, settings: ChartSettings(), charts: [glucoseChart], traitCollection: traitCollection)
         // Axis bounds describe the display, never fabricated sensor samples.
         glucoseChart.glucoseDisplayRange = HKQuantity(unit: HKUnit(from: "mg/dL"), doubleValue: 40)...HKQuantity(unit: HKUnit(from: "mg/dL"), doubleValue: 400)
@@ -231,8 +293,9 @@ final class ResearchController: UIViewController, CGMManagerDelegate, CGMManager
         return charts.chart(atIndex: 0, frame: frame)?.view
     }
     private func refresh() {
+        persistResearchEvidence()
         refreshConnectionDiagnostics()
-        let values = journal?.chartValues ?? []; glucoseChart.setGlucoseValues(values); charts.startDate = Date().addingTimeInterval(-6 * 3600); charts.maxEndDate = Date(); charts.prerender(); charts.invalidateChart(atIndex: 0); chartView.reloadChart()
+        let values = journal?.chartValues ?? []; chartHeight.constant = values.isEmpty ? 0 : 220; glucoseChart.setGlucoseValues(values); charts.startDate = Date().addingTimeInterval(-6 * 3600); charts.maxEndDate = Date(); charts.prerender(); charts.invalidateChart(atIndex: 0); chartView.reloadChart()
         let rows = (journal?.records ?? []).sorted { ($0["event_at"] as? String ?? "") < ($1["event_at"] as? String ?? "") }
         history.text = rows.suffix(100).reversed().map { row in
             let quality = row["quality"] as? [String: Any] ?? [:]
@@ -246,18 +309,50 @@ final class ResearchController: UIViewController, CGMManagerDelegate, CGMManager
             let age = seconds < 0 ? "timestamp is in the future" : "\(Int(seconds)) seconds old"
             let receipt = rows.compactMap { $0["received_at"] as? String }.max() ?? "unknown"
             lastObservation.text = "Last measurement: \(latest.startDate.formatted()) (\(age))\nLast receipt: \(receipt)\nResearch readout; consult the independent G6 app for treatment alarms."
-        } else { lastObservation.text = "No observed G6 readings. Simulator-generated readings are disabled." }
+        } else { lastObservation.text = "No timestamped G6 readings. Simulator-generated readings are disabled." }
+        let untimed = (journal?.evidenceRecords ?? []).filter { $0["schema"] as? String == "project-live.cgm-untimed-packet" }.sorted { ($0["received_at"] as? String ?? "") < ($1["received_at"] as? String ?? "") }
+        if let latest = untimed.last {
+            let receipt = latest["received_at"] as? String ?? "unknown"
+            let reliable = latest["quality_reliable"] as? Bool == true
+            let value = reliable ? "G6 packet value: \(latest["glucose_raw"] ?? "?") mg/dL" : "G6 packet retained; quality flagged."
+            if receipt >= (rows.compactMap { $0["received_at"] as? String }.max() ?? "") {
+                lastObservation.text = value + "\nMeasurement time and currentness unknown.\nPhone receipt: " + receipt + "\nExcluded from timed chart, export and predictions."
+            }
+            history.text += "\nUntimed packets retained privately: \(untimed.count). Original receipt/device clocks preserved; no automatic time reconstruction."
+        }
 
+    }
+    private func persistResearchEvidence() {
+        guard let manager, let journal, UserDefaults.standard.bool(forKey: "researchCollectionConsent") else { return }
+        let transmitter = manager.transmitter
+        persistedEvidenceSnapshots.formIntersection(Set(transmitter.researchUntimedGlucose.map { $0.recordID } + transmitter.researchClockReferences.map { $0.recordID }))
+        let newUntimed = transmitter.researchUntimedGlucose.filter { !persistedEvidenceSnapshots.contains($0.recordID) }
+        let newClocks = transmitter.researchClockReferences.filter { !persistedEvidenceSnapshots.contains($0.recordID) }
+        guard !newUntimed.isEmpty || !newClocks.isEmpty else { return }
+        let untimed = newUntimed.map {
+            ResearchObservation.untimedRecord(streamID: $0.streamID, packet: $0.rawPacket, receivedAt: $0.receivedAt, receivedUptime: $0.receivedUptime, transmitterUptime: $0.transmitterUptime, status: $0.status, sequence: $0.sequence, glucoseRaw: $0.glucoseRaw, state: $0.state, trend: $0.trend, isDisplayOnly: $0.isDisplayOnly, isReliable: $0.isReliable)
+        }
+        let clocks = newClocks.map {
+            ResearchObservation.clockRecord(streamID: $0.streamID, packet: $0.rawPacket, receivedAt: $0.receivedAt, receivedUptime: $0.receivedUptime, transmitterUptime: $0.transmitterUptime, status: $0.status, sessionStartTime: $0.sessionStartTime)
+        }
+        do {
+            try journal.appendEvidence(untimed + clocks)
+            persistedEvidenceSnapshots.formUnion((newUntimed.map { $0.recordID }) + (newClocks.map { $0.recordID }))
+            if !newUntimed.isEmpty { status.text = "Received G6 packet; measurement time unresolved. Stored privately and excluded from timed analysis." }
+        }
+        catch { stopResearchObservation(reason: "Research evidence storage failed; collection paused.") }
     }
     private func showError(_ error: Error) { status.text = "Research collection error: \(error.localizedDescription)" }
     func startDateToFilterNewData(for manager: CGMManager) -> Date? { nil }
     func cgmManager(_ manager: CGMManager, hasNew readingResult: CGMReadingResult) {
         guard manager === self.manager, UserDefaults.standard.bool(forKey: "researchCollectionConsent") else { return }
         guard let journal else { stopResearchObservation(reason: "Research journal unavailable; consent must be renewed after storage is repaired."); return }
+        persistResearchEvidence()
+        guard manager === self.manager else { return }
         switch readingResult {
         case .newData(let samples): do { retryTimer?.invalidate(); connectionProbe.cancel(); try journal.append(samples, receivedAt: Date()); if exportEnabled { try journal.export() }; status.text = "Observed \(samples.count) G6 reading(s). Research only; treatment remains independent."; refresh() } catch { stopResearchObservation(reason: "Research collection paused: \(error.localizedDescription). Repair storage and renew consent before resuming.") }
         case .unreliableData: status.text = "G6 reported unreliable data. No glucose observation added."
-        case .noData: break
+        case .noData: refresh()
         case .error(let error): showError(error)
         }
     }
@@ -275,6 +370,7 @@ final class ResearchController: UIViewController, CGMManagerDelegate, CGMManager
         self.manager?.transmitter.stayConnected = false
         self.manager?.transmitter.stopScanning()
         self.manager = nil
+        persistedEvidenceSnapshots.removeAll()
         refreshConnectionDiagnostics()
         UserDefaults.standard.removeObject(forKey: "researchCGM")
         exportEnabled = false

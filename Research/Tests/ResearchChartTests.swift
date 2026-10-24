@@ -37,6 +37,8 @@ final class ResearchChartTests: XCTestCase {
 private final class TestResearchJournal: ResearchJournalStore {
     var records: [[String: Any]] = []
     var chartValues: [GlucoseValue] = []
+    var evidenceRecords: [[String: Any]] = []
+    func appendEvidence(_ rows: [[String: Any]]) throws { evidenceRecords.append(contentsOf: rows) }
     var failRemoval = false
     func append(_ samples: [NewGlucoseSample], receivedAt: Date) throws {}
     func export() throws {}
@@ -147,4 +149,102 @@ final class ResearchPassiveSubscriptionTests: XCTestCase {
     func testNotificationChangeErrorPropagatesWithoutFallback() {
         XCTAssertThrowsError(try ResearchPassiveSubscriptions.updateNotification(current: false, requested: true) { throw Failure.rejected })
     }
+}
+
+@MainActor
+final class ResearchUntimedEvidenceTests: XCTestCase {
+    private let packet = Data([0x31, 0, 0x68, 0x0a, 0, 0, 0x8a, 0x71, 0x57, 0, 0xcc, 0, 6, 0xff, 0xc4, 0x2a])
+    private let clock = Data([0x25, 0, 0x47, 2, 0x72, 0, 0x7c, 0xff, 0x71, 0, 1, 0, 0, 0, 0xfa, 0x1d])
+    private func row(_ sample: ResearchUntimedGlucose) -> [String: Any] {
+        ResearchObservation.untimedRecord(streamID: sample.streamID, packet: sample.rawPacket, receivedAt: sample.receivedAt, receivedUptime: sample.receivedUptime, transmitterUptime: sample.transmitterUptime, status: sample.status, sequence: sample.sequence, glucoseRaw: sample.glucoseRaw, state: sample.state, trend: sample.trend, isDisplayOnly: sample.isDisplayOnly, isReliable: sample.isReliable)
+    }
+    func testValidPacketRetainsReceiptAndUnknownMeasurementTime() throws {
+        var buffer = ResearchEvidenceBuffer()
+        let receipt = Date()
+        guard case .untimed = buffer.observeGlucose(packet, receivedAt: receipt, receivedUptime: 50, hasClock: false) else { return XCTFail("Valid packet must be retained untimed") }
+        let sample = try XCTUnwrap(buffer.untimed.first)
+        XCTAssertEqual(sample.receivedAt, receipt); XCTAssertEqual(sample.receivedUptime, 50)
+        XCTAssertEqual(sample.rawPacket, packet); XCTAssertEqual(sample.transmitterUptime, 5730698)
+        XCTAssertEqual(sample.glucoseRaw, 204); XCTAssertTrue(sample.isReliable)
+        let record = row(sample)
+        XCTAssertTrue(record["event_at"] is NSNull)
+        XCTAssertEqual(record["eligible_for_timed_analysis"] as? Bool, false)
+        XCTAssertEqual(record["schema"] as? String, "project-live.cgm-untimed-packet")
+        XCTAssertNil(record["transmitter_id"])
+    }
+    func testInvalidCRCDoesNotProducePrivateGlucoseEvidence() {
+        var broken = packet; broken[10] ^= 1
+        var buffer = ResearchEvidenceBuffer()
+        guard case .invalid = buffer.observeGlucose(broken, receivedAt: Date(), receivedUptime: 50, hasClock: false) else { return XCTFail("CRC mutation must fail") }
+        XCTAssertTrue(buffer.untimed.isEmpty)
+    }
+    func testLaterClockDoesNotRewriteOrPromoteOriginalEvidence() throws {
+        var buffer = ResearchEvidenceBuffer()
+        let receipt = Date()
+        _ = buffer.observeGlucose(packet, receivedAt: receipt, receivedUptime: 50, hasClock: false)
+        let before = try JSONSerialization.data(withJSONObject: row(XCTUnwrap(buffer.untimed.first)), options: [.sortedKeys])
+        XCTAssertNotNil(buffer.observeClock(clock, receivedAt: receipt.addingTimeInterval(60), receivedUptime: 110))
+        let after = try JSONSerialization.data(withJSONObject: row(XCTUnwrap(buffer.untimed.first)), options: [.sortedKeys])
+        XCTAssertEqual(before, after); XCTAssertEqual(buffer.clocks.count, 1)
+        guard case .timed = buffer.observeGlucose(packet, receivedAt: receipt.addingTimeInterval(61), receivedUptime: 111, hasClock: true) else { return XCTFail("New anchored packet can use the existing timed path") }
+        XCTAssertEqual(buffer.untimed.count, 1)
+    }
+    func testBoundedBufferReportsOverflow() {
+        var buffer = ResearchEvidenceBuffer()
+        for i in 0..<25 { _ = buffer.observeGlucose(packet, receivedAt: Date(), receivedUptime: Double(i), hasClock: false) }
+        XCTAssertEqual(buffer.untimed.count, 24); XCTAssertEqual(buffer.untimedOverflowCount, 1)
+    }
+    func testEvidenceStoreDeduplicatesWithoutReplacingFirstReceipt() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = try ResearchEvidenceJournal(directory: directory)
+        var buffer = ResearchEvidenceBuffer()
+        let receipt = Date()
+        _ = buffer.observeGlucose(packet, receivedAt: receipt, receivedUptime: 50, hasClock: false)
+        _ = buffer.observeGlucose(packet, receivedAt: receipt.addingTimeInterval(1), receivedUptime: 51, hasClock: false)
+        let first = row(try XCTUnwrap(buffer.untimed.first))
+        try store.append(buffer.untimed.map(row))
+        XCTAssertEqual(store.records.count, 1); XCTAssertEqual(store.duplicateCount, 1)
+        XCTAssertEqual(store.records.first?["received_at"] as? String, first["received_at"] as? String)
+        XCTAssertTrue(store.records.first?["event_at"] is NSNull)
+        let reopened = try ResearchEvidenceJournal(directory: directory)
+        XCTAssertEqual(reopened.records.count, 1)
+        XCTAssertEqual(reopened.records.first?["packet_base64"] as? String, packet.base64EncodedString())
+    }
+    func testUntimedReadoutDoesNotCreateTimedChartValues() throws {
+        var buffer = ResearchEvidenceBuffer()
+        _ = buffer.observeGlucose(packet, receivedAt: Date(), receivedUptime: 50, hasClock: false)
+        let journal = TestResearchJournal()
+        journal.evidenceRecords = [row(try XCTUnwrap(buffer.untimed.first))]
+        let controller = ResearchController(journalFactory: { journal })
+        controller.loadViewIfNeeded()
+        XCTAssertTrue(controller.researchReadout.contains("Measurement time and currentness unknown"))
+        XCTAssertTrue(controller.researchReadout.contains("204"))
+        XCTAssertTrue(journal.records.isEmpty); XCTAssertTrue(journal.chartValues.isEmpty)
+    }
+    func testFlaggedQualityIsRetainedWithoutCallingItReliable() throws {
+        for (offset, value) in [(12, UInt8(2)), (11, UInt8(0x40)), (1, UInt8(0xff))] {
+            var altered = packet; altered[offset] = value
+            altered = Data(altered.dropLast(2)).appendingCRC()
+            var buffer = ResearchEvidenceBuffer()
+            guard case .untimed = buffer.observeGlucose(altered, receivedAt: Date(), receivedUptime: 50, hasClock: false) else { return XCTFail("Valid flagged packet must be preserved") }
+            XCTAssertFalse(try XCTUnwrap(buffer.untimed.first).isReliable)
+        }
+    }
+    func testProductionTimedExportExcludesUntimedAndClockEvidence() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let journal = try ResearchJournal(testRoot: directory)
+        var buffer = ResearchEvidenceBuffer()
+        _ = buffer.observeGlucose(packet, receivedAt: Date(), receivedUptime: 50, hasClock: false)
+        _ = buffer.observeClock(clock, receivedAt: Date(), receivedUptime: 51)
+        let reference = try XCTUnwrap(buffer.clocks.first)
+        let clockRow = ResearchObservation.clockRecord(streamID: reference.streamID, packet: reference.rawPacket, receivedAt: reference.receivedAt, receivedUptime: reference.receivedUptime, transmitterUptime: reference.transmitterUptime, status: reference.status, sessionStartTime: reference.sessionStartTime)
+        try journal.appendEvidence([row(try XCTUnwrap(buffer.untimed.first)), clockRow])
+        try journal.export()
+        XCTAssertEqual(journal.evidenceRecords.count, 2)
+        XCTAssertTrue(journal.records.isEmpty); XCTAssertTrue(journal.chartValues.isEmpty)
+        XCTAssertTrue(try Data(contentsOf: journal.exportURL).isEmpty)
+    }
+
 }
