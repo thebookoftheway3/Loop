@@ -115,6 +115,20 @@ final class ResearchLifecycleTests: XCTestCase {
         }
     }
 
+    func testForegroundActivationRendersAfterColdInactiveLaunch() {
+        let defaults = UserDefaults.standard
+        let old = defaults.object(forKey: "researchCollectionConsent")
+        defer { defaults.set(old, forKey: "researchCollectionConsent") }
+        defaults.set(false, forKey: "researchCollectionConsent")
+        var active = false
+        let controller = ResearchController(journalFactory: { TestResearchJournal() }, isApplicationActive: { active })
+        controller.loadViewIfNeeded()
+        active = true
+        NotificationCenter.default.post(name: UIApplication.didBecomeActiveNotification, object: nil)
+        XCTAssertTrue(controller.researchReadout.contains("No timestamped G6 readings"))
+        XCTAssertFalse(controller.isForegroundCollecting)
+    }
+
     func testStorageFailureRevokesConsentBeforeRestoringG6() {
         let defaults = UserDefaults.standard
         let oldConsent = defaults.object(forKey: "researchCollectionConsent")

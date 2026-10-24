@@ -210,7 +210,7 @@ final class ResearchController: UIViewController, CGMManagerDelegate, CGMManager
     private var palette: LoopUIColorPalette { LoopUIColorPalette(guidanceColors: GuidanceColors(), carbTintColor: .gray, glucoseTintColor: .blue, insulinTintColor: .gray, loopStatusColorPalette: StateColorPalette(unknown: .gray, normal: .blue, warning: .orange, error: .red), chartColorPalette: chartColors) }
 
     override func viewDidLoad() {
-        super.viewDidLoad(); NotificationCenter.default.addObserver(self, selector: #selector(stopForegroundProbe), name: UIApplication.willResignActiveNotification, object: nil); NotificationCenter.default.addObserver(self, selector: #selector(startForegroundCollection), name: UIApplication.didBecomeActiveNotification, object: nil); title = "Loop G6 Research"; view.backgroundColor = .systemBackground
+        super.viewDidLoad(); NotificationCenter.default.addObserver(self, selector: #selector(stopForegroundProbe), name: UIApplication.willResignActiveNotification, object: nil); NotificationCenter.default.addObserver(self, selector: #selector(stopForegroundProbe), name: UIApplication.didEnterBackgroundNotification, object: nil); NotificationCenter.default.addObserver(self, selector: #selector(startForegroundCollection), name: UIApplication.didBecomeActiveNotification, object: nil); title = "Loop G6 Research"; view.backgroundColor = .systemBackground
         lastObservation.numberOfLines = 0; lastObservation.font = .preferredFont(forTextStyle: .caption1)
         connectionDiagnostics.numberOfLines = 0; connectionDiagnostics.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
         status.numberOfLines = 0; status.text = "Read-only G6 research. No pump connection, dosing or treatment controls. Keep the G6 app and Basal-IQ operating independently."
@@ -274,6 +274,7 @@ final class ResearchController: UIViewController, CGMManagerDelegate, CGMManager
         } catch { /* Optional diagnostic snapshot; observation journal has its own fail-closed handling. */ }
     }
     @objc private func startForegroundCollection() {
+        refresh() // A cold background launch may not have rendered the readout yet.
         guard let manager, isApplicationActive(),
               UserDefaults.standard.bool(forKey: "researchCollectionConsent"),
               !UserDefaults.standard.bool(forKey: "researchCollectionPaused") else { return }
@@ -314,7 +315,7 @@ final class ResearchController: UIViewController, CGMManagerDelegate, CGMManager
     }
     @objc private func configure() {
         if let manager { showManagerUI(manager.settingsViewController(bluetoothProvider: self, displayGlucosePreference: preference, colorPalette: palette, allowDebugFeatures: false)); return }
-        let alert = UIAlertController(title: "Local G6 research collection", message: "This restricted Loop build stores up to seven days of G6 readings privately on this iPhone. It does not replace G6 alarms or Basal-IQ. Configure only after the owner has approved the coexistence test; do not unpair or change existing treatment.", preferredStyle: .alert)
+        let alert = UIAlertController(title: "Local G6 research collection", message: "This restricted Loop build collects G6 readings, including in the background when iOS permits, and stores up to seven days privately on this iPhone. It does not replace G6 alarms or Basal-IQ. Configure only after the owner has approved the coexistence test; do not unpair or change existing treatment.", preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         alert.addAction(UIAlertAction(title: "Agree and configure G6", style: .default) { [weak self] _ in
             guard let self, ResearchPolicy.permitsCGM(G6CGMManager.pluginIdentifier) else { return }
